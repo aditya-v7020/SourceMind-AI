@@ -40,7 +40,9 @@ class Settings(BaseSettings):
     CHROMA_PERSIST_DIR: str = "./chroma_data"
 
     # --- CORS ---
-    CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
+    CORS_ORIGINS: str = (
+        "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000,https://source-mind-ai.vercel.app"
+    )
 
     # --- Document processing ---
     CHUNK_SIZE: int = 1000
@@ -52,7 +54,11 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> list[str]:
-        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+        origins = [origin.strip().rstrip("/") for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+        prod_origin = "https://source-mind-ai.vercel.app"
+        if prod_origin not in origins:
+            origins.append(prod_origin)
+        return origins
 
     @property
     def available_models_list(self) -> list[str]:
