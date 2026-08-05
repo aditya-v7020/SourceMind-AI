@@ -7,6 +7,7 @@ needs an API key.
 """
 from __future__ import annotations
 
+import gc
 import os
 import threading
 import uuid
@@ -77,7 +78,7 @@ def get_collection(session_id: str):
 
 
 def add_chunks(session_id: str, source_id: str, source_name: str, chunks: list[str]) -> int:
-    """Embeds and stores chunks for a source. Returns number of chunks stored."""
+    """Embeds and stores chunks for a source in small batches to keep memory under 512 MB. Returns number of chunks stored."""
     if not chunks:
         return 0
 
@@ -85,7 +86,16 @@ def add_chunks(session_id: str, source_id: str, source_name: str, chunks: list[s
     ids = [f"{source_id}_{i}_{uuid.uuid4().hex[:6]}" for i in range(len(chunks))]
     metadatas = [{"source_id": source_id, "source_name": source_name, "chunk_index": i} for i in range(len(chunks))]
 
-    collection.add(documents=chunks, ids=ids, metadatas=metadatas)
+    batch_size = 16
+    for start_idx in range(0, len(chunks), batch_size):
+        end_idx = start_idx + batch_size
+        collection.add(
+            documents=chunks[start_idx:end_idx],
+            ids=ids[start_idx:end_idx],
+            metadatas=metadatas[start_idx:end_idx],
+        )
+
+    gc.collect()
     return len(chunks)
 
 

@@ -131,6 +131,10 @@ async def upload_source(session_id: str, file: UploadFile = File(...)) -> Upload
             )
     except source_agent.SourceProcessingError as exc:
         return UploadResponse(success=False, message=str(exc))
+    finally:
+        del file_bytes
+        import gc
+        gc.collect()
 
     stats_store_module.stats_store.record_upload(session_id)
     return UploadResponse(success=True, source=info, message=f"'{filename}' added successfully.")
