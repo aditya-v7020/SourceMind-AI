@@ -1,0 +1,166 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-canvas text-ink antialiased font-body transition-colors duration-200;
+}
+
+.dark body {
+  @apply bg-dcanvas text-dink;
+}
+
+.font-display {
+  font-family: "Space Grotesk", sans-serif;
+}
+.font-mono {
+  font-family: "IBM Plex Mono", monospace;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 dark:bg-dline rounded-full;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* --- Reusable design primitives (v4 redesign) --- */
+
+.glass-panel {
+  @apply bg-white/80 dark:bg-dpanel/80 backdrop-blur-md border border-line dark:border-dline shadow-glass dark:shadow-glass-dark;
+}
+
+.card {
+  @apply bg-panel dark:bg-dpanel border border-line dark:border-dline rounded-2xl;
+}
+
+.card-hover {
+  @apply transition-all duration-200 hover:shadow-floating hover:-translate-y-0.5;
+}
+
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl bg-ink dark:bg-dink text-white dark:text-dcanvas
+    px-4 py-2 text-sm font-medium transition-all duration-150
+    hover:opacity-90 active:scale-[0.97] disabled:opacity-40 disabled:pointer-events-none;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl border border-line dark:border-dline
+    bg-panel dark:bg-dpanel2 text-ink dark:text-dink px-4 py-2 text-sm font-medium transition-all duration-150
+    hover:bg-canvas dark:hover:bg-dline/40 active:scale-[0.97] disabled:opacity-40 disabled:pointer-events-none;
+}
+
+.btn-ghost {
+  @apply inline-flex items-center justify-center gap-1.5 rounded-lg text-subink dark:text-dsubink
+    px-2.5 py-1.5 text-xs font-medium transition-all duration-150
+    hover:bg-canvas dark:hover:bg-dline/40 hover:text-ink dark:hover:text-dink active:scale-[0.95];
+}
+
+.input-field {
+  @apply w-full rounded-xl border border-line dark:border-dline bg-panel dark:bg-dpanel2
+    text-ink dark:text-dink placeholder:text-subink/60 dark:placeholder:text-dsubink/60
+    px-3.5 py-2.5 text-sm outline-none transition-all duration-150
+    focus:border-ink/40 dark:focus:border-dink/40 focus:ring-4 focus:ring-ink/5 dark:focus:ring-dink/10;
+}
+
+.chip {
+  @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium leading-none;
+}
+
+.skeleton {
+  @apply relative overflow-hidden bg-line/60 dark:bg-dline/60 rounded-lg;
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0,
+    rgba(255, 255, 255, 0.5) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 1000px 100%;
+  animation: shimmer 1.8s linear infinite;
+}
+.dark .skeleton {
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
+.typing-caret::after {
+  content: "\258B";
+  @apply ml-0.5 text-ink/50 dark:text-dink/50 animate-blink;
+}
+
+/* Markdown / chat message body */
+.prose-chat {
+  @apply text-[14.5px] leading-relaxed text-ink dark:text-dink;
+}
+.prose-chat p {
+  @apply mb-3 last:mb-0;
+}
+.prose-chat h1,
+.prose-chat h2,
+.prose-chat h3 {
+  @apply font-display font-semibold mt-4 mb-2 first:mt-0;
+}
+.prose-chat h1 {
+  @apply text-lg;
+}
+.prose-chat h2 {
+  @apply text-base;
+}
+.prose-chat h3 {
+  @apply text-sm uppercase tracking-wide text-subink dark:text-dsubink;
+}
+.prose-chat ul {
+  @apply list-disc pl-5 mb-3 space-y-1;
+}
+.prose-chat ol {
+  @apply list-decimal pl-5 mb-3 space-y-1;
+}
+.prose-chat strong {
+  @apply font-semibold;
+}
+.prose-chat a {
+  @apply underline decoration-dotted underline-offset-2 hover:text-chat dark:hover:text-chat;
+}
+.prose-chat code:not(pre code) {
+  @apply font-mono text-[12.5px] bg-canvas dark:bg-dpanel2 border border-line dark:border-dline rounded px-1 py-0.5;
+}
+.prose-chat blockquote {
+  @apply border-l-2 border-line dark:border-dline pl-3 italic text-subink dark:text-dsubink my-2;
+}
+.prose-chat table {
+  @apply w-full text-xs border-collapse mb-3;
+}
+.prose-chat th,
+.prose-chat td {
+  @apply border border-line dark:border-dline px-2 py-1 text-left;
+}
+.prose-chat th {
+  @apply bg-canvas dark:bg-dpanel2 font-semibold;
+}
+
+.code-block {
+  @apply rounded-xl overflow-hidden border border-line dark:border-dline my-3 bg-[#161821];
+}
+.code-block-header {
+  @apply flex items-center justify-between px-3 py-1.5 text-[11px] font-mono text-white/50 bg-black/20;
+}
+.code-block pre {
+  @apply m-0 p-3.5 overflow-x-auto text-[12.5px] leading-relaxed;
+}
+.code-block code {
+  font-family: "IBM Plex Mono", monospace;
+}
