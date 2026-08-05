@@ -18,23 +18,19 @@ import asyncio
 
 from app.config import settings
 
-_AGENT_API_KEYS = {
-    "chat": settings.CHAT_AGENT_API_KEY,
-    "research": settings.RESEARCH_AGENT_API_KEY,
-    "source": settings.SOURCE_AGENT_API_KEY,
-    "quiz": settings.QUIZ_AGENT_API_KEY,
-    "verifier": settings.VERIFIER_AGENT_API_KEY,
-    "podcast": settings.PODCAST_AGENT_API_KEY,
-}
-
 # Agents that fall back to the Chat Agent's key when their own is unset.
-_FALLBACK_TO_CHAT = {"quiz", "verifier", "podcast"}
+_FALLBACK_TO_CHAT = {"source", "quiz", "verifier", "podcast"}
 
 _clients: dict[str, Any] = {}
 
 
+def _get_own_api_key(agent: str) -> str:
+    key_attr = f"{agent.upper()}_AGENT_API_KEY"
+    return str(getattr(settings, key_attr, "") or "")
+
+
 def _resolve_api_key(agent: str) -> str:
-    api_key = _AGENT_API_KEYS.get(agent, "")
+    api_key = _get_own_api_key(agent)
     if not api_key and agent in _FALLBACK_TO_CHAT:
         api_key = settings.CHAT_AGENT_API_KEY
     return api_key
@@ -43,7 +39,7 @@ def _resolve_api_key(agent: str) -> str:
 def get_client(agent: str) -> Any:
     """Lazily builds (and caches) the Gemini client for one agent, using
     that agent's own dedicated API key (falling back to the Chat Agent's
-    key for the Quiz/Verifier agents if their own key isn't set)."""
+    key if its own key isn't set)."""
     if agent not in _clients:
         api_key = _resolve_api_key(agent)
         if not api_key:
@@ -70,7 +66,8 @@ def has_own_key(agent: str) -> bool:
     """True only if this agent has its OWN dedicated key configured
     (i.e. not merely inheriting the Chat Agent's key). Used by the
     Settings page to show accurate per-agent key status."""
-    return bool(_AGENT_API_KEYS.get(agent, ""))
+    return bool(_get_own_api_key(agent))
+
 
 
 def is_ready(agent: str) -> bool:

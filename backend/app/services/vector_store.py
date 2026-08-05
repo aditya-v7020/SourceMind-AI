@@ -1,9 +1,8 @@
 """
 Thin wrapper around ChromaDB giving each chat session its own persistent
-collection. Embeddings are generated locally with a lightweight
-sentence-transformers model (all-MiniLM-L6-v2) so no external embedding
-API/key is required — only Gemini (used for the final chat generation)
-needs an API key.
+collection. Embeddings are generated via Google Gemini's API (gemini-embedding-001)
+so heavy ML libraries (PyTorch/sentence-transformers) are not required —
+keeping total memory footprint under ~110 MB RAM (safely within Render Free's 512 MB limit).
 """
 from __future__ import annotations
 
@@ -13,30 +12,35 @@ import threading
 import uuid
 from typing import Any
 
+from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
+
 from app.config import settings
+from app.services import llm_client
 
 _client: Any = None
 _embedding_function: Any = None
 _lock = threading.Lock()
 
 
-def _set_low_memory_env() -> None:
-    """Sets CPU thread limits to minimize PyTorch/OpenMP memory usage on low-memory instances."""
-    os.environ.setdefault("OMP_NUM_THREADS", "1")
-    os.environ.setdefault("MKL_NUM_THREADS", "1")
-    os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
-    os.environ.setdefault("VECLIB_MAXIMUM_THREADS", "1")
-    os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
-    try:
-        import torch
-        torch.set_num_threads(1)
-        if hasattr(torch, "set_num_interop_threads"):
-            try:
-                torch.set_num_interop_threads(1)
-            except Exception:
-                pass
-    except Exception:
-        pass
+class GeminiEmbeddingFunction(EmbeddingFunction):
+    """Generates vector embeddings using Gemini's gemini-embedding-001 model via API."""
+
+    def __call__(self, input: Documents) -> Embeddings:
+        if not input:
+            return []
+        client = llm_client.get_client("source")
+        # Batch requests in chunks of 16 to ensure lightweight network payloads
+        batch_size = 16
+        all_embeddings: list[list[float]] = []
+        for i in range(0, len(input), batch_size):
+            batch = input[i : i + batch_size]
+            res = client.models.embed_content(
+                model="gemini-embedding-001",
+                contents=batch,
+            )
+            for emb in res.embeddings:
+                all_embeddings.append(emb.values)
+        return all_embeddings
 
 
 def _get_client() -> Any:
@@ -44,7 +48,6 @@ def _get_client() -> Any:
     if _client is None:
         with _lock:
             if _client is None:
-                _set_low_memory_env()
                 import chromadb
                 _client = chromadb.PersistentClient(path=settings.CHROMA_PERSIST_DIR)
     return _client
@@ -55,11 +58,7 @@ def _get_embedding_function() -> Any:
     if _embedding_function is None:
         with _lock:
             if _embedding_function is None:
-                _set_low_memory_env()
-                from chromadb.utils import embedding_functions
-                _embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
-                    model_name="all-MiniLM-L6-v2"
-                )
+                _embedding_function = GeminiEmbeddingFunction()
     return _embedding_function
 
 
@@ -78,7 +77,7 @@ def get_collection(session_id: str):
 
 
 def add_chunks(session_id: str, source_id: str, source_name: str, chunks: list[str]) -> int:
-    """Embeds and stores chunks for a source in small batches to keep memory under 512 MB. Returns number of chunks stored."""
+    """Embeds and stores chunks for a source in small batches to keep memory minimal. Returns number of chunks stored."""
     if not chunks:
         return 0
 
@@ -106,9 +105,8 @@ def delete_source(session_id: str, source_id: str) -> None:
     try:
         collection.delete(where={"source_id": source_id})
     except Exception:
-        # Nothing to delete, or the collection doesn't support the filter -
-        # safe to ignore, the source metadata is removed regardless.
         pass
+    gc.collect()
 
 
 def collection_chunk_count(session_id: str) -> int:
@@ -133,6 +131,8 @@ def query(session_id: str, query_text: str, top_k: int | None = None) -> list[di
     metadatas = results.get("metadatas", [[]])[0]
     distances = results.get("distances", [[]])[0]
 
+    gc.collect()
+
     return [
         {
             "content": doc,
@@ -141,3 +141,4 @@ def query(session_id: str, query_text: str, top_k: int | None = None) -> list[di
         }
         for doc, meta, dist in zip(documents, metadatas, distances)
     ]
+

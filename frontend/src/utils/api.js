@@ -1,7 +1,12 @@
 export function getApiBaseUrl() {
   const envApi = import.meta.env.VITE_API_BASE_URL;
   if (envApi && envApi.trim()) {
-    return envApi.trim().replace(/\/+$/, "");
+    let url = envApi.trim().replace(/\/+$/, "");
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      const isHttps = typeof window !== "undefined" && window.location && window.location.protocol === "https:";
+      return isHttps ? `https://${url}` : `http://${url}`;
+    }
+    return url;
   }
   if (typeof window !== "undefined" && window.location && window.location.protocol === "https:") {
     return "https://sourcemind-ai-9a1p.onrender.com";
@@ -15,6 +20,10 @@ export function getWsBaseUrl() {
     let url = envWs.trim().replace(/\/+$/, "");
     if (url.startsWith("https://")) return url.replace(/^https:\/\//i, "wss://");
     if (url.startsWith("http://")) return url.replace(/^http:\/\//i, "ws://");
+    if (!url.startsWith("ws://") && !url.startsWith("wss://")) {
+      const isHttps = typeof window !== "undefined" && window.location && window.location.protocol === "https:";
+      return isHttps ? `wss://${url}` : `ws://${url}`;
+    }
     return url;
   }
 
@@ -37,7 +46,13 @@ export const API_BASE_URL = getApiBaseUrl();
 
 async function asJson(response) {
   try {
-    return await response.json();
+    const data = await response.json();
+    if (!response.ok && data && typeof data === "object") {
+      if (!data.message && data.detail) {
+        data.message = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail);
+      }
+    }
+    return data;
   } catch {
     return { success: false, message: `Unexpected response (${response.status}).` };
   }
@@ -66,7 +81,13 @@ export function uploadFileWithProgress(sessionId, file, onProgress) {
 
     xhr.onload = () => {
       try {
-        resolve(JSON.parse(xhr.responseText));
+        const data = JSON.parse(xhr.responseText);
+        if (xhr.status >= 400 && data && typeof data === "object") {
+          if (!data.message && data.detail) {
+            data.message = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail);
+          }
+        }
+        resolve(data);
       } catch {
         resolve({ success: false, message: `Upload failed (${xhr.status}).` });
       }
@@ -81,97 +102,151 @@ export async function uploadFile(sessionId, file) {
 }
 
 export async function addUrlSource(sessionId, url) {
-  const response = await fetch(`${API_BASE_URL}/api/sources/url`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session_id: sessionId, url }),
-  });
-  return asJson(response);
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/sources/url`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: sessionId, url }),
+    });
+    return await asJson(response);
+  } catch (err) {
+    return { success: false, message: err.message || "Network error adding URL." };
+  }
 }
 
 export async function addTextSource(sessionId, text, title) {
-  const response = await fetch(`${API_BASE_URL}/api/sources/text`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session_id: sessionId, text, title }),
-  });
-  return asJson(response);
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/sources/text`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: sessionId, text, title }),
+    });
+    return await asJson(response);
+  } catch (err) {
+    return { success: false, message: err.message || "Network error adding text." };
+  }
 }
 
 export async function fetchSources(sessionId) {
-  const response = await fetch(`${API_BASE_URL}/api/sources/${encodeURIComponent(sessionId)}`);
-  return asJson(response);
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/sources/${encodeURIComponent(sessionId)}`);
+    return await asJson(response);
+  } catch {
+    return { sources: [] };
+  }
 }
 
 export async function deleteSource(sessionId, sourceId) {
-  const response = await fetch(
-    `${API_BASE_URL}/api/sources/${encodeURIComponent(sessionId)}/${encodeURIComponent(sourceId)}`,
-    { method: "DELETE" }
-  );
-  return asJson(response);
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/sources/${encodeURIComponent(sessionId)}/${encodeURIComponent(sourceId)}`,
+      { method: "DELETE" }
+    );
+    return await asJson(response);
+  } catch (err) {
+    return { success: false, message: err.message || "Network error deleting source." };
+  }
 }
 
 export async function fetchHealth() {
-  const response = await fetch(`${API_BASE_URL}/api/health`);
-  return asJson(response);
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/health`);
+    return await asJson(response);
+  } catch {
+    return { status: "offline", version: null };
+  }
 }
 
 export async function fetchSettings(sessionId) {
-  const response = await fetch(
-    `${API_BASE_URL}/api/settings${sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ""}`
-  );
-  return asJson(response);
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/settings${sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ""}`
+    );
+    return await asJson(response);
+  } catch (err) {
+    return {
+      agents: [],
+      available_models: ["gemini-flash-latest"],
+      default_model: "gemini-flash-latest",
+      features: { citation_verifier: true },
+      error: err.message,
+    };
+  }
 }
 
 // --- Conversations (chat management) ---
 
 export async function fetchConversations(sessionId) {
-  const response = await fetch(`${API_BASE_URL}/api/conversations/${encodeURIComponent(sessionId)}`);
-  return asJson(response);
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/conversations/${encodeURIComponent(sessionId)}`);
+    return await asJson(response);
+  } catch {
+    return { conversations: [] };
+  }
 }
 
 export async function createConversation(sessionId, title) {
-  const response = await fetch(`${API_BASE_URL}/api/conversations/${encodeURIComponent(sessionId)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title: title || null }),
-  });
-  return asJson(response);
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/conversations/${encodeURIComponent(sessionId)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: title || null }),
+    });
+    return await asJson(response);
+  } catch {
+    return { id: "conv_fallback", title: "New chat", created_at: Date.now() / 1000, updated_at: Date.now() / 1000, message_count: 0 };
+  }
 }
 
 export async function fetchConversation(sessionId, convId) {
-  const response = await fetch(
-    `${API_BASE_URL}/api/conversations/${encodeURIComponent(sessionId)}/${encodeURIComponent(convId)}`
-  );
-  return asJson(response);
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/conversations/${encodeURIComponent(sessionId)}/${encodeURIComponent(convId)}`
+    );
+    return await asJson(response);
+  } catch {
+    return { messages: [] };
+  }
 }
 
 export async function renameConversation(sessionId, convId, title) {
-  const response = await fetch(
-    `${API_BASE_URL}/api/conversations/${encodeURIComponent(sessionId)}/${encodeURIComponent(convId)}`,
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title }),
-    }
-  );
-  return asJson(response);
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/conversations/${encodeURIComponent(sessionId)}/${encodeURIComponent(convId)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      }
+    );
+    return await asJson(response);
+  } catch {
+    return { success: false };
+  }
 }
 
 export async function deleteConversation(sessionId, convId) {
-  const response = await fetch(
-    `${API_BASE_URL}/api/conversations/${encodeURIComponent(sessionId)}/${encodeURIComponent(convId)}`,
-    { method: "DELETE" }
-  );
-  return asJson(response);
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/conversations/${encodeURIComponent(sessionId)}/${encodeURIComponent(convId)}`,
+      { method: "DELETE" }
+    );
+    return await asJson(response);
+  } catch {
+    return { success: false };
+  }
 }
 
 export async function clearConversation(sessionId, convId) {
-  const response = await fetch(
-    `${API_BASE_URL}/api/conversations/${encodeURIComponent(sessionId)}/${encodeURIComponent(convId)}/clear`,
-    { method: "POST" }
-  );
-  return asJson(response);
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/conversations/${encodeURIComponent(sessionId)}/${encodeURIComponent(convId)}/clear`,
+      { method: "POST" }
+    );
+    return await asJson(response);
+  } catch {
+    return { success: false };
+  }
 }
 
 export function exportConversationUrl(sessionId, convId, format) {
@@ -201,6 +276,23 @@ export async function downloadConversationExport(sessionId, convId, format, file
 // --- Dashboard ---
 
 export async function fetchDashboard(sessionId) {
-  const response = await fetch(`${API_BASE_URL}/api/dashboard/${encodeURIComponent(sessionId)}`);
-  return asJson(response);
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/dashboard/${encodeURIComponent(sessionId)}`);
+    return await asJson(response);
+  } catch (err) {
+    return {
+      total_sources: 0,
+      total_chunks: 0,
+      total_conversations: 0,
+      total_messages: 0,
+      uploads_count: 0,
+      agent_invocations: {},
+      recent_activity: [],
+      sources_by_type: {},
+      session_age_seconds: 0,
+      last_active: null,
+      error: err.message,
+    };
+  }
 }
+

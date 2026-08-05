@@ -48,7 +48,7 @@ function AddSourceMenu({ sessionId, onSourceAdded, onUploadStart, onUploadProgre
         if (res.success) {
           onSourceAdded(res.source);
         } else {
-          setError(res.message || `Failed to add '${file.name}'.`);
+          setError(res.message || res.detail || `Failed to add '${file.name}'.`);
         }
       } catch {
         setError(`Failed to upload '${file.name}'.`);

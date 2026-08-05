@@ -22,15 +22,27 @@ export function useWebSocket(sessionId, onEvent) {
 
     let cancelled = false;
     let pingTimer = null;
+    let backoffDelay = 1500;
 
     function connect() {
       if (cancelled) return;
       const wsBase = getWsBaseUrl();
-      const socket = new WebSocket(`${wsBase}/ws/${sessionId}`);
+      let socket;
+      try {
+        socket = new WebSocket(`${wsBase}/ws/${sessionId}`);
+      } catch (err) {
+        console.warn("[ws] Connection URL error:", err);
+        if (!cancelled) {
+          reconnectTimer.current = setTimeout(connect, backoffDelay);
+          backoffDelay = Math.min(backoffDelay * 2, 15000);
+        }
+        return;
+      }
       socketRef.current = socket;
 
       socket.onopen = () => {
         setConnected(true);
+        backoffDelay = 1500;
         pingTimer = setInterval(() => {
           if (socket.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify({ type: "ping" }));
@@ -42,7 +54,10 @@ export function useWebSocket(sessionId, onEvent) {
         setConnected(false);
         if (pingTimer) clearInterval(pingTimer);
         if (!cancelled) {
-          reconnectTimer.current = setTimeout(connect, 1500);
+          const jitter = Math.floor(Math.random() * 500);
+          const nextDelay = backoffDelay + jitter;
+          reconnectTimer.current = setTimeout(connect, nextDelay);
+          backoffDelay = Math.min(backoffDelay * 2, 15000);
         }
       };
 
