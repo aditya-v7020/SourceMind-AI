@@ -78,6 +78,7 @@ async def warm_up_agent_clients() -> None:
         print(f"[startup] {agent} agent: {state}")
 
 
+@app.get("/health")
 @app.get("/api/health")
 async def health() -> dict[str, str | int]:
     return {"status": "ok", "version": APP_VERSION, "agent_count": len(ALL_AGENTS)}

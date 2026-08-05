@@ -16,8 +16,6 @@ from __future__ import annotations
 
 import asyncio
 
-from google import genai
-
 from app.config import settings
 
 _AGENT_API_KEYS = {
@@ -32,7 +30,7 @@ _AGENT_API_KEYS = {
 # Agents that fall back to the Chat Agent's key when their own is unset.
 _FALLBACK_TO_CHAT = {"quiz", "verifier", "podcast"}
 
-_clients: dict[str, genai.Client] = {}
+_clients: dict[str, Any] = {}
 
 
 def _resolve_api_key(agent: str) -> str:
@@ -42,7 +40,7 @@ def _resolve_api_key(agent: str) -> str:
     return api_key
 
 
-def get_client(agent: str) -> genai.Client:
+def get_client(agent: str) -> Any:
     """Lazily builds (and caches) the Gemini client for one agent, using
     that agent's own dedicated API key (falling back to the Chat Agent's
     key for the Quiz/Verifier agents if their own key isn't set)."""
@@ -51,6 +49,7 @@ def get_client(agent: str) -> genai.Client:
         if not api_key:
             env_var = f"{agent.upper()}_AGENT_API_KEY"
             raise RuntimeError(f"{env_var} is not set. Add it to backend/.env before using the {agent} agent.")
+        from google import genai
         _clients[agent] = genai.Client(api_key=api_key)
     return _clients[agent]
 

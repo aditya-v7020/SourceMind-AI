@@ -7,19 +7,59 @@ needs an API key.
 """
 from __future__ import annotations
 
+import os
+import threading
 import uuid
 from typing import Any
 
-import chromadb
-from chromadb.utils import embedding_functions
-
 from app.config import settings
 
-_embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
-    model_name="all-MiniLM-L6-v2"
-)
+_client: Any = None
+_embedding_function: Any = None
+_lock = threading.Lock()
 
-_client = chromadb.PersistentClient(path=settings.CHROMA_PERSIST_DIR)
+
+def _set_low_memory_env() -> None:
+    """Sets CPU thread limits to minimize PyTorch/OpenMP memory usage on low-memory instances."""
+    os.environ.setdefault("OMP_NUM_THREADS", "1")
+    os.environ.setdefault("MKL_NUM_THREADS", "1")
+    os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+    os.environ.setdefault("VECLIB_MAXIMUM_THREADS", "1")
+    os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
+    try:
+        import torch
+        torch.set_num_threads(1)
+        if hasattr(torch, "set_num_interop_threads"):
+            try:
+                torch.set_num_interop_threads(1)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
+def _get_client() -> Any:
+    global _client
+    if _client is None:
+        with _lock:
+            if _client is None:
+                _set_low_memory_env()
+                import chromadb
+                _client = chromadb.PersistentClient(path=settings.CHROMA_PERSIST_DIR)
+    return _client
+
+
+def _get_embedding_function() -> Any:
+    global _embedding_function
+    if _embedding_function is None:
+        with _lock:
+            if _embedding_function is None:
+                _set_low_memory_env()
+                from chromadb.utils import embedding_functions
+                _embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
+                    model_name="all-MiniLM-L6-v2"
+                )
+    return _embedding_function
 
 
 def _collection_name(session_id: str) -> str:
@@ -27,9 +67,11 @@ def _collection_name(session_id: str) -> str:
 
 
 def get_collection(session_id: str):
-    return _client.get_or_create_collection(
+    client = _get_client()
+    ef = _get_embedding_function()
+    return client.get_or_create_collection(
         name=_collection_name(session_id),
-        embedding_function=_embedding_function,
+        embedding_function=ef,
         metadata={"hnsw:space": "cosine"},
     )
 

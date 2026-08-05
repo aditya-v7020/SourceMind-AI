@@ -4,13 +4,11 @@ from __future__ import annotations
 
 import io
 
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from pypdf import PdfReader
-
 from app.config import settings
 
 
 def extract_text_from_pdf(file_bytes: bytes) -> str:
+    from pypdf import PdfReader
     reader = PdfReader(io.BytesIO(file_bytes))
     pages_text: list[str] = []
     for page in reader.pages:
@@ -21,6 +19,7 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
 
 
 def chunk_text(text: str, chunk_size: int | None = None, chunk_overlap: int | None = None) -> list[str]:
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size or settings.CHUNK_SIZE,
         chunk_overlap=chunk_overlap or settings.CHUNK_OVERLAP,
