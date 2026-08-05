@@ -311,6 +311,10 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str) -> None:
                 continue
 
             message_type = payload.get("type")
+            if message_type == "ping":
+                await websocket.send_json({"type": "pong"})
+                continue
+
             conv_id = payload.get("conv_id") or session_store_module.DEFAULT_CONVERSATION_ID
 
             try:

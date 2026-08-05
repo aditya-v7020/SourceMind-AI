@@ -1,4 +1,39 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+export function getApiBaseUrl() {
+  const envApi = import.meta.env.VITE_API_BASE_URL;
+  if (envApi && envApi.trim()) {
+    return envApi.trim().replace(/\/+$/, "");
+  }
+  if (typeof window !== "undefined" && window.location && window.location.protocol === "https:") {
+    return "https://sourcemind-ai-9a1p.onrender.com";
+  }
+  return "http://localhost:8000";
+}
+
+export function getWsBaseUrl() {
+  const envWs = import.meta.env.VITE_WS_BASE_URL;
+  if (envWs && envWs.trim()) {
+    let url = envWs.trim().replace(/\/+$/, "");
+    if (url.startsWith("https://")) return url.replace(/^https:\/\//i, "wss://");
+    if (url.startsWith("http://")) return url.replace(/^http:\/\//i, "ws://");
+    return url;
+  }
+
+  const apiBase = getApiBaseUrl();
+  if (apiBase.startsWith("https://")) {
+    return apiBase.replace(/^https:\/\//i, "wss://");
+  }
+  if (apiBase.startsWith("http://")) {
+    return apiBase.replace(/^http:\/\//i, "ws://");
+  }
+
+  if (typeof window !== "undefined" && window.location && window.location.protocol === "https:") {
+    return "wss://sourcemind-ai-9a1p.onrender.com";
+  }
+
+  return "ws://localhost:8000";
+}
+
+export const API_BASE_URL = getApiBaseUrl();
 
 async function asJson(response) {
   try {

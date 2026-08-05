@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-
-const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || "ws://localhost:8000";
+import { getWsBaseUrl } from "../utils/api.js";
 
 /**
  * Connects to the backend's per-session WebSocket and exposes:
@@ -22,28 +21,41 @@ export function useWebSocket(sessionId, onEvent) {
     if (!sessionId) return undefined;
 
     let cancelled = false;
+    let pingTimer = null;
 
     function connect() {
       if (cancelled) return;
-      const socket = new WebSocket(`${WS_BASE_URL}/ws/${sessionId}`);
+      const wsBase = getWsBaseUrl();
+      const socket = new WebSocket(`${wsBase}/ws/${sessionId}`);
       socketRef.current = socket;
 
-      socket.onopen = () => setConnected(true);
+      socket.onopen = () => {
+        setConnected(true);
+        pingTimer = setInterval(() => {
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: "ping" }));
+          }
+        }, 25000);
+      };
 
       socket.onclose = () => {
         setConnected(false);
+        if (pingTimer) clearInterval(pingTimer);
         if (!cancelled) {
           reconnectTimer.current = setTimeout(connect, 1500);
         }
       };
 
       socket.onerror = () => {
-        socket.close();
+        if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+          socket.close();
+        }
       };
 
       socket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          if (data.type === "pong") return;
           onEventRef.current?.(data);
         } catch {
           // ignore malformed frames
@@ -55,6 +67,7 @@ export function useWebSocket(sessionId, onEvent) {
 
     return () => {
       cancelled = true;
+      if (pingTimer) clearInterval(pingTimer);
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       socketRef.current?.close();
     };
