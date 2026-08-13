@@ -338,9 +338,5 @@ cd frontend
 npm run dev
 ```
 
-CHAT_AGENT_API_KEY=your_chat_agent_api_key
-RESEARCH_AGENT_API_KEY=your_research_agent_api_key
-SOURCE_AGENT_API_KEY=your_source_agent_api_key
-QUIZ_AGENT_API_KEY=your_quiz_agent_api_key
-VERIFIER_AGENT_API_KEY=your_verifier_agent_api_key
-PODCAST_AGENT_API_KEY=your_podcast_agent_api_key
+# Website Link
+https://source-mind-ai.vercel.app?utm_source=chatgpt.com
