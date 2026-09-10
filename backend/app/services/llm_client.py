@@ -76,15 +76,24 @@ def is_ready(agent: str) -> bool:
     return bool(_resolve_api_key(agent))
 
 
-def _is_transient_503(exc: Exception) -> bool:
-    """Returns True if the exception indicates a 503 UNAVAILABLE or temporary high-demand server error."""
+def _is_transient_error(exc: Exception) -> bool:
+    """Returns True if the exception indicates a 500/502/503/504 server error, 429 rate limit, or high-demand issue."""
     status_code = getattr(exc, "status_code", None) or getattr(exc, "code", None)
-    if status_code == 503:
+    if status_code in (429, 500, 502, 503, 504):
         return True
     err_str = str(exc).upper()
     transient_indicators = [
+        "500",
+        "502",
         "503",
+        "504",
+        "429",
+        "INTERNAL",
         "UNAVAILABLE",
+        "RESOURCE_EXHAUSTED",
+        "RATE_LIMIT",
+        "QUOTA",
+        "DEADLINE_EXCEEDED",
         "HIGH DEMAND",
         "OVERLOADED",
         "SERVER ERROR",
@@ -92,6 +101,9 @@ def _is_transient_503(exc: Exception) -> bool:
         "TRY AGAIN LATER",
     ]
     return any(ind in err_str for ind in transient_indicators)
+
+
+_is_transient_503 = _is_transient_error  # Backwards compatibility for tests
 
 
 def _generate_single_attempt(agent: str, prompt: str, model_name: str) -> str:
@@ -103,8 +115,8 @@ def _generate_single_attempt(agent: str, prompt: str, model_name: str) -> str:
 def _generate_sync(agent: str, prompt: str, model: str | None = None) -> str:
     """
     Executes Gemini generation with:
-    1. Up to 3 retries with exponential backoff (~2s, ~4s, ~8s) for 503 UNAVAILABLE / high demand.
-    2. Automatic fallback to alternative supported Gemini Flash models if primary model remains 503.
+    1. Up to 2 retries with exponential backoff (~1s, ~2s) for 500/503/429 transient errors.
+    2. Automatic fallback to alternative supported Gemini Flash models if primary model remains in error.
     """
     primary_model = model or settings.GEMINI_MODEL
     delays = [1, 2]
@@ -114,20 +126,20 @@ def _generate_sync(agent: str, prompt: str, model: str | None = None) -> str:
         try:
             return _generate_single_attempt(agent, prompt, primary_model)
         except Exception as exc:
-            if not _is_transient_503(exc):
+            if not _is_transient_error(exc):
                 # Permanent error (400 bad request, 401 invalid key, etc.) - do not retry
                 raise exc
 
             if attempt < len(delays):
                 delay = delays[attempt]
                 print(
-                    f"[llm_client] 503 UNAVAILABLE / High demand on model '{primary_model}' for {agent} agent "
+                    f"[llm_client] Transient error ({exc}) on model '{primary_model}' for {agent} agent "
                     f"(retry {attempt + 1}/{len(delays)}). Waiting {delay}s before retrying..."
                 )
                 time.sleep(delay)
             else:
                 print(
-                    f"[llm_client] Primary model '{primary_model}' exhausted all {len(delays)} retries due to 503 high demand. "
+                    f"[llm_client] Primary model '{primary_model}' exhausted all {len(delays)} retries due to transient errors. "
                     "Initiating fallback model cascade..."
                 )
 
@@ -152,7 +164,7 @@ def _generate_sync(agent: str, prompt: str, model: str | None = None) -> str:
                 return res_text
             except Exception as exc:
                 last_error = exc
-                if not _is_transient_503(exc):
+                if not _is_transient_error(exc):
                     print(
                         f"[llm_client] Fallback model '{fb_model}' encountered error ({exc}). "
                         "Skipping to next candidate model..."
@@ -161,7 +173,7 @@ def _generate_sync(agent: str, prompt: str, model: str | None = None) -> str:
                 if attempt < len(delays):
                     delay = delays[attempt]
                     print(
-                        f"[llm_client] Fallback model '{fb_model}' returned 503 for {agent} agent. "
+                        f"[llm_client] Fallback model '{fb_model}' returned transient error ({exc}) for {agent} agent. "
                         f"Retrying in {delay}s..."
                     )
                     time.sleep(delay)

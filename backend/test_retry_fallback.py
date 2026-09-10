@@ -21,11 +21,15 @@ def test_transient_503_detection():
     exc1 = Mock503Exc("503 Service Unavailable")
     exc2 = Exception("503 UNAVAILABLE: This model is currently experiencing high demand.")
     exc3 = Exception("400 Bad Request: Invalid arguments.")
+    exc4 = Exception("500 INTERNAL: {'error': {'code': 500, 'message': 'Internal error encountered.', 'status': 'INTERNAL'}}")
+    exc5 = Exception("429 RESOURCE_EXHAUSTED: Quota exceeded")
 
-    assert llm_client._is_transient_503(exc1) is True, "Failed to identify 503 status code"
-    assert llm_client._is_transient_503(exc2) is True, "Failed to identify 503 text indicator"
-    assert llm_client._is_transient_503(exc3) is False, "400 error misidentified as 503"
-    print("[PASS] 503 transient error detection verified.")
+    assert llm_client._is_transient_error(exc1) is True, "Failed to identify 503 status code"
+    assert llm_client._is_transient_error(exc2) is True, "Failed to identify 503 text indicator"
+    assert llm_client._is_transient_error(exc3) is False, "400 error misidentified as transient"
+    assert llm_client._is_transient_error(exc4) is True, "Failed to identify 500 INTERNAL"
+    assert llm_client._is_transient_error(exc5) is True, "Failed to identify 429 RESOURCE_EXHAUSTED"
+    print("[PASS] 500/503/429 transient error detection verified.")
 
 def test_retry_and_fallback_logic():
     print("\n--- Testing Exponential Backoff & Fallback Model Cascade ---")
@@ -96,11 +100,32 @@ def test_fallback_skips_404_deprecated_model():
         assert "gemini-flash-latest" in attempts, "Subsequent fallback model was not attempted"
         print("[PASS] Successfully skipped 404 model in cascade and retrieved answer from next candidate.")
 
+def test_500_internal_error_retry_and_fallback():
+    print("\n--- Testing 500 INTERNAL Error Retry & Fallback ---")
+    attempts = []
+
+    def mock_single_attempt(agent, prompt, model_name):
+        attempts.append(model_name)
+        if model_name == "gemini-3.6-flash":
+            raise Exception("500 INTERNAL: {'error': {'code': 500, 'message': 'Internal error encountered.', 'status': 'INTERNAL'}}")
+        elif model_name == "gemini-3.7-flash":
+            return "500 fallback success!"
+        raise Exception("500 INTERNAL")
+
+    with patch("app.services.llm_client._generate_single_attempt", side_effect=mock_single_attempt), \
+         patch("time.sleep", return_value=None) as mock_sleep:
+        res = llm_client._generate_sync("verifier", "Check this", model="gemini-3.6-flash")
+        assert res == "500 fallback success!", f"Expected fallback response, got: {res}"
+        primary_attempts = [a for a in attempts if a == "gemini-3.6-flash"]
+        assert len(primary_attempts) == 3, f"Expected 3 attempts on primary model for 500 error, got {len(primary_attempts)}"
+        print("[PASS] Retried 500 INTERNAL error and successfully fell back to 'gemini-3.7-flash'.")
+
 if __name__ == "__main__":
     test_transient_503_detection()
     test_retry_and_fallback_logic()
     test_permanent_error_no_retry()
     test_fallback_skips_404_deprecated_model()
+    test_500_internal_error_retry_and_fallback()
     print("\n============================================================")
     print("ALL RETRY AND FALLBACK UNIT TESTS PASSED SUCCESSFULLY!")
     print("============================================================")
