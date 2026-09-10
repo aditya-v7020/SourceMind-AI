@@ -143,7 +143,7 @@ client the moment it needs one.
 | Frontend       | React + Vite + Tailwind CSS                        |
 | Backend        | FastAPI + WebSockets                               |
 | Agent framework| LangGraph                                          |
-| LLM            | Google Gemini (`gemini-flash-latest` by default, via the `google-genai` SDK) |
+| LLM            | Google Gemini (`gemini-3.6-flash` by default, via the `google-genai` SDK) |
 | Vector DB      | ChromaDB (local, persistent, on-disk)              |
 | Embeddings     | `sentence-transformers` (`all-MiniLM-L6-v2`, local)|
 | Document parsing | PyPDF, BeautifulSoup4, LangChain text splitter   |

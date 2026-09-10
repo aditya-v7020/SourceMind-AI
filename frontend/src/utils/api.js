@@ -166,8 +166,8 @@ export async function fetchSettings(sessionId) {
   } catch (err) {
     return {
       agents: [],
-      available_models: ["gemini-flash-latest"],
-      default_model: "gemini-flash-latest",
+      available_models: ["gemini-3.6-flash", "gemini-3.7-flash", "gemini-flash-latest"],
+      default_model: "gemini-3.6-flash",
       features: { citation_verifier: true },
       error: err.message,
     };

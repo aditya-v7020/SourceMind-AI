@@ -33,27 +33,27 @@ def test_retry_and_fallback_logic():
 
     def mock_single_attempt(agent, prompt, model_name):
         attempts.append((model_name, time.time()))
-        if model_name == "gemini-flash-latest":
+        if model_name == "gemini-3.6-flash":
             raise Exception("503 UNAVAILABLE: High demand")
-        elif model_name == "gemini-2.5-flash":
+        elif model_name == "gemini-3.7-flash":
             return "Fallback success!"
         else:
             raise Exception("503 UNAVAILABLE: High demand")
 
     with patch("app.services.llm_client._generate_single_attempt", side_effect=mock_single_attempt), \
          patch("time.sleep", return_value=None) as mock_sleep:
-        res = llm_client._generate_sync("chat", "Test prompt", model="gemini-flash-latest")
+        res = llm_client._generate_sync("chat", "Test prompt", model="gemini-3.6-flash")
         assert res == "Fallback success!", f"Expected fallback response, got: {res}"
         
         # Verify 4 attempts on primary model (initial + 3 retries with 2s, 4s, 8s delays)
-        primary_attempts = [a for a in attempts if a[0] == "gemini-flash-latest"]
+        primary_attempts = [a for a in attempts if a[0] == "gemini-3.6-flash"]
         assert len(primary_attempts) == 4, f"Expected 4 attempts on primary model, got {len(primary_attempts)}"
         
         # Verify sleep delays called (2s, 4s, 8s)
         sleep_args = [call.args[0] for call in mock_sleep.call_args_list]
         assert sleep_args[:3] == [2, 4, 8], f"Expected delays [2, 4, 8], got {sleep_args}"
         
-        print("[PASS] Retried 3 times on primary model (delays: 2s, 4s, 8s), then successfully fell back to 'gemini-2.5-flash'.")
+        print("[PASS] Retried 3 times on primary model (delays: 2s, 4s, 8s), then successfully fell back to 'gemini-3.7-flash'.")
 
 def test_permanent_error_no_retry():
     print("\n--- Testing Permanent Error Behavior (No Retries) ---")
@@ -74,10 +74,33 @@ def test_permanent_error_no_retry():
             assert mock_sleep.call_count == 0, "Sleep should not be called for permanent errors!"
             print("[PASS] Permanent 400 error raised immediately without retries.")
 
+def test_fallback_skips_404_deprecated_model():
+    print("\n--- Testing Fallback Skips 404 Deprecated Models ---")
+    attempts = []
+
+    def mock_single_attempt(agent, prompt, model_name):
+        attempts.append(model_name)
+        if model_name == "gemini-3.6-flash":
+            raise Exception("503 UNAVAILABLE: High demand")
+        elif model_name == "gemini-3.7-flash":
+            raise Exception("404 NOT_FOUND: Model is deprecated or not available")
+        elif model_name == "gemini-flash-latest":
+            return "Next candidate success!"
+        raise Exception("503 UNAVAILABLE")
+
+    with patch("app.services.llm_client._generate_single_attempt", side_effect=mock_single_attempt), \
+         patch("time.sleep", return_value=None):
+        res = llm_client._generate_sync("chat", "Test prompt", model="gemini-3.6-flash")
+        assert res == "Next candidate success!", f"Expected fallback response, got: {res}"
+        assert "gemini-3.7-flash" in attempts, "404 model was not attempted"
+        assert "gemini-flash-latest" in attempts, "Subsequent fallback model was not attempted"
+        print("[PASS] Successfully skipped 404 model in cascade and retrieved answer from next candidate.")
+
 if __name__ == "__main__":
     test_transient_503_detection()
     test_retry_and_fallback_logic()
     test_permanent_error_no_retry()
+    test_fallback_skips_404_deprecated_model()
     print("\n============================================================")
     print("ALL RETRY AND FALLBACK UNIT TESTS PASSED SUCCESSFULLY!")
     print("============================================================")

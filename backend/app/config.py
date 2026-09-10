@@ -27,10 +27,10 @@ class Settings(BaseSettings):
     QUIZ_AGENT_API_KEY: str = ""
     VERIFIER_AGENT_API_KEY: str = ""
     PODCAST_AGENT_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-flash-latest"
+    GEMINI_MODEL: str = "gemini-3.6-flash"
     # Models selectable from the Settings page (purely a UI convenience -
     # the backend will happily use whatever value the client sends).
-    AVAILABLE_MODELS: str = "gemini-flash-latest,gemini-2.5-flash,gemini-2.5-pro,gemini-2.0-flash"
+    AVAILABLE_MODELS: str = "gemini-3.6-flash,gemini-3.7-flash,gemini-flash-latest"
 
     # Enables the Citation Verifier's confidence badge on every answer.
     # Does not change how the Chat Agent's core answer is generated.

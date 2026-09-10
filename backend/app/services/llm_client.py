@@ -133,8 +133,8 @@ def _generate_sync(agent: str, prompt: str, model: str | None = None) -> str:
 
     # 2. Primary model exhausted due to 503 - try fallback models
     candidate_fallbacks = settings.available_models_list + [
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
+        "gemini-3.6-flash",
+        "gemini-3.7-flash",
         "gemini-flash-latest",
     ]
     unique_fallbacks: list[str] = []
@@ -142,6 +142,7 @@ def _generate_sync(agent: str, prompt: str, model: str | None = None) -> str:
         if f not in unique_fallbacks and f != primary_model:
             unique_fallbacks.append(f)
 
+    last_error: Exception | None = None
     for fb_model in unique_fallbacks:
         print(f"[llm_client] Trying fallback model '{fb_model}' for {agent} agent...")
         for attempt in range(len(delays) + 1):
@@ -150,8 +151,13 @@ def _generate_sync(agent: str, prompt: str, model: str | None = None) -> str:
                 print(f"[llm_client] Successfully generated response using fallback model '{fb_model}' for {agent} agent.")
                 return res_text
             except Exception as exc:
+                last_error = exc
                 if not _is_transient_503(exc):
-                    raise exc
+                    print(
+                        f"[llm_client] Fallback model '{fb_model}' encountered error ({exc}). "
+                        "Skipping to next candidate model..."
+                    )
+                    break
                 if attempt < len(delays):
                     delay = delays[attempt]
                     print(
@@ -163,8 +169,8 @@ def _generate_sync(agent: str, prompt: str, model: str | None = None) -> str:
                     print(f"[llm_client] Fallback model '{fb_model}' also exhausted retries.")
 
     raise RuntimeError(
-        "All configured Gemini models are currently experiencing high demand (503 UNAVAILABLE). "
-        "Please try again in a few moments."
+        f"All configured Gemini models failed or are currently experiencing high demand. "
+        f"Last error: {last_error or 'unavailable'}. Please try again in a few moments."
     )
 
 
