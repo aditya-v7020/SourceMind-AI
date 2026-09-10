@@ -107,7 +107,7 @@ def _generate_sync(agent: str, prompt: str, model: str | None = None) -> str:
     2. Automatic fallback to alternative supported Gemini Flash models if primary model remains 503.
     """
     primary_model = model or settings.GEMINI_MODEL
-    delays = [2, 4, 8]
+    delays = [1, 2]
 
     # 1. Attempt primary model with retries
     for attempt in range(len(delays) + 1):

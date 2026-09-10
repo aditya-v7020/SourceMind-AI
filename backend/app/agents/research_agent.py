@@ -21,7 +21,7 @@ from app.websocket_manager import manager
 
 
 def _search_sync(query: str, max_results: int) -> list[dict[str, Any]]:
-    with DDGS() as ddgs:
+    with DDGS(timeout=7) as ddgs:
         raw_results = list(ddgs.text(query, max_results=max_results))
     return [
         {
@@ -38,10 +38,13 @@ async def research_web(session_id: str, query: str, max_results: int = 5) -> lis
         session_id, "research", "start", f'Searching the web for: "{query}"...'
     )
     try:
-        results = await asyncio.to_thread(_search_sync, query, max_results)
+        results = await asyncio.wait_for(
+            asyncio.to_thread(_search_sync, query, max_results),
+            timeout=8.0,
+        )
     except Exception as exc:
         await manager.send_agent_status(
-            session_id, "research", "error", f"Web search failed: {exc}"
+            session_id, "research", "error", f"Web search timed out or failed: {exc}"
         )
         return []
 

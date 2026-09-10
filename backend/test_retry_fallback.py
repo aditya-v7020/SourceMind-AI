@@ -45,15 +45,15 @@ def test_retry_and_fallback_logic():
         res = llm_client._generate_sync("chat", "Test prompt", model="gemini-3.6-flash")
         assert res == "Fallback success!", f"Expected fallback response, got: {res}"
         
-        # Verify 4 attempts on primary model (initial + 3 retries with 2s, 4s, 8s delays)
+        # Verify 3 attempts on primary model (initial + 2 retries with 1s, 2s delays)
         primary_attempts = [a for a in attempts if a[0] == "gemini-3.6-flash"]
-        assert len(primary_attempts) == 4, f"Expected 4 attempts on primary model, got {len(primary_attempts)}"
+        assert len(primary_attempts) == 3, f"Expected 3 attempts on primary model, got {len(primary_attempts)}"
         
-        # Verify sleep delays called (2s, 4s, 8s)
+        # Verify sleep delays called (1s, 2s)
         sleep_args = [call.args[0] for call in mock_sleep.call_args_list]
-        assert sleep_args[:3] == [2, 4, 8], f"Expected delays [2, 4, 8], got {sleep_args}"
+        assert sleep_args[:2] == [1, 2], f"Expected delays [1, 2], got {sleep_args}"
         
-        print("[PASS] Retried 3 times on primary model (delays: 2s, 4s, 8s), then successfully fell back to 'gemini-3.7-flash'.")
+        print("[PASS] Retried 2 times on primary model (delays: 1s, 2s), then successfully fell back to 'gemini-3.7-flash'.")
 
 def test_permanent_error_no_retry():
     print("\n--- Testing Permanent Error Behavior (No Retries) ---")

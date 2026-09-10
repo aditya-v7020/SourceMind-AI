@@ -71,7 +71,10 @@ async def verify_answer(
     )
 
     try:
-        result_text = await llm_client.generate_text(AGENT_NAME, prompt)
+        result_text = await asyncio.wait_for(
+            llm_client.generate_text(AGENT_NAME, prompt),
+            timeout=10.0,
+        )
     except Exception as exc:
         await manager.send_agent_status(
             session_id, "verifier", "error", f"Could not verify the answer: {exc}"
