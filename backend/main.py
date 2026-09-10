@@ -402,5 +402,5 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str) -> None:
                 await manager.send_agent_status(session_id, message_type or "chat", "error", error_message)
                 await manager.send_event(session_id, {"type": "answer", "content": error_message, "conv_id": conv_id})
 
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, RuntimeError):
         manager.disconnect(session_id, websocket)
